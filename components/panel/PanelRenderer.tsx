@@ -21,10 +21,11 @@ function slotClass(size: TemplateSize): string {
 }
 
 export function PanelRenderer({ manifest }: PanelRendererProps) {
+  const components = manifest.components ?? [];
   return (
     <div className="w-full h-full panel-stage">
       <div className="h-full relative overflow-auto rounded-lg bg-transparent border border-transparent">
-        {manifest.components.length === 0 ? (
+        {components.length === 0 ? (
           <div className="w-full h-full min-h-[360px] flex flex-col items-center justify-center">
             <div className="w-10 h-10 bg-white/5 rounded flex items-center justify-center mb-3">
               <Plus size={24} className="text-white/20" />
@@ -35,7 +36,7 @@ export function PanelRenderer({ manifest }: PanelRendererProps) {
         ) : (
           <div className="panel-canvas">
             <div className="component-layout-grid">
-              {[...manifest.components]
+              {[...components]
                 .sort((a, b) => {
                   const aContract = resolveTemplateContract(a.component_id, (a.front_props ?? {}) as Record<string, unknown>);
                   const bContract = resolveTemplateContract(b.component_id, (b.front_props ?? {}) as Record<string, unknown>);

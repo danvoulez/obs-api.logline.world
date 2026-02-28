@@ -159,10 +159,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const icons = [Home, Activity, Upload, FileText, Database, Cpu, ShoppingBag];
   const activePanel = panels[activePanelIndex];
+  const activePanelComponents = activePanel?.components ?? [];
   const selectedInstanceId = activePanel
-    ? (selectedInstanceByPanel[activePanel.panel_id] ?? activePanel.components?.[0]?.instance_id ?? '')
+    ? (selectedInstanceByPanel[activePanel.panel_id] ?? activePanelComponents[0]?.instance_id ?? '')
     : '';
-  const selectedInstance = activePanel?.components?.find((c) => c.instance_id === selectedInstanceId);
+  const selectedInstance = activePanelComponents.find((c) => c.instance_id === selectedInstanceId);
   const selectedScope = typeof selectedInstance?.front_props?.app_scope === 'string'
     ? selectedInstance.front_props.app_scope
     : '';

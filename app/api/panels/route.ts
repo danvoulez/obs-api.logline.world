@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { panels } from '@/db/schema';
+import { panels, panelComponents } from '@/db/schema';
 
 function scope(req: NextRequest) {
   return {
@@ -12,11 +12,35 @@ function scope(req: NextRequest) {
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { workspaceId, appId } = scope(req);
-  const rows = await db.select().from(panels)
+  const panelRows = await db.select().from(panels)
     .where(eq(panels.workspace_id, workspaceId))
     .orderBy(asc(panels.position));
 
-  return NextResponse.json(rows.map((p) => ({ ...p, app_id: p.app_id || appId })));
+  const allComponents = panelRows.length > 0
+    ? await db.select().from(panelComponents).orderBy(asc(panelComponents.position))
+    : [];
+
+  const componentsByPanel = new Map<string, typeof allComponents>();
+  for (const c of allComponents) {
+    const list = componentsByPanel.get(c.panel_id) ?? [];
+    list.push(c);
+    componentsByPanel.set(c.panel_id, list);
+  }
+
+  const result = panelRows.map((p) => ({
+    ...p,
+    app_id: p.app_id || appId,
+    layout_grid: { rows: 24, cols: 32 },
+    components: (componentsByPanel.get(p.panel_id) ?? []).map((c) => ({
+      instance_id: c.instance_id,
+      component_id: c.component_id,
+      version: c.version,
+      rect: { x: c.rect_x, y: c.rect_y, w: c.rect_w, h: c.rect_h },
+      front_props: JSON.parse(c.front_props || '{}'),
+    })),
+  }));
+
+  return NextResponse.json(result);
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -32,5 +56,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     position: 0,
   }).returning();
 
-  return NextResponse.json(created, { status: 201 });
+  return NextResponse.json({
+    ...created,
+    layout_grid: { rows: 24, cols: 32 },
+    components: [],
+  }, { status: 201 });
 }
