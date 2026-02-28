@@ -518,24 +518,31 @@ export function useLogStatus() {
 }
 
 export function useEcosystemHealth() {
-  return useQuery({
+  return useQuery<{ ok: boolean; user_id?: string; email?: string }>({
     queryKey: ['ecosystem', 'health'],
     queryFn: () => apiFetch('/api/v1/auth/whoami'),
     refetchInterval: 30_000,
   });
 }
 
+type FuelEvent = {
+  cursor: string | number;
+  kind: string;
+  run_id?: string;
+  [key: string]: unknown;
+};
+
 export function useFuelEvents(appId?: string) {
-  return useQuery({
+  return useQuery<FuelEvent[]>({
     queryKey: ['fuel', appId],
-    queryFn: () => apiFetch(`/api/fuel-events?app_id=${encodeURIComponent(appId ?? '')}`),
+    queryFn: () => apiFetch<FuelEvent[]>(`/api/fuel-events?app_id=${encodeURIComponent(appId ?? '')}`),
     refetchInterval: 30_000,
   });
 }
 
 export function useApps() {
-  return useQuery({
+  return useQuery<{ app_id: string; name: string; [key: string]: unknown }[]>({
     queryKey: ['apps'],
-    queryFn: () => apiFetch('/api/apps'),
+    queryFn: () => apiFetch<{ app_id: string; name: string; [key: string]: unknown }[]>('/api/apps'),
   });
 }
