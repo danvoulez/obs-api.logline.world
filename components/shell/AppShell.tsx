@@ -3,7 +3,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useUIStore } from '@/stores/ui-store';
 import { usePanels, useCreatePanel, useDeletePanel, useRenamePanel, useAddComponent, useRemoveComponent } from '@/lib/api/db-hooks';
-import { useDaemonHealth, useDaemonRuntimeStatus } from '@/lib/api/db-hooks';
 import { ChevronLeft, ChevronRight, Settings, Activity, Home, Upload, FileText, Database, Cpu, ShoppingBag, Plus, Trash2, Search, Wifi, WifiOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ComponentStore } from '../component-catalog/ComponentStore';
@@ -11,8 +10,6 @@ import { ComponentStore } from '../component-catalog/ComponentStore';
 export function AppShell({ children }: { children: React.ReactNode }) {
   // ── SQLite-backed data ─────────────────────────────────────────────────────
   const { data: panels = [], isLoading, isError, refetch: refetchPanels } = usePanels();
-  const daemonHealth = useDaemonHealth();
-  const daemonRuntimeStatus = useDaemonRuntimeStatus();
   const createPanel = useCreatePanel();
   const deletePanel  = useDeletePanel();
   const renamePanel = useRenamePanel();
@@ -63,26 +60,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [nextPanel, prevPanel, totalPanels, setActivePanelIndex]);
 
   useEffect(() => {
-    const healthOk = daemonHealth.data?.ok === true;
-    setWSConnected(healthOk);
-
-    if (!healthOk) {
-      setGlobalStatus('offline', [{ name: 'logline-daemon', status: 'fail', latency_ms: 0 }]);
-      return;
-    }
-
-    if (daemonRuntimeStatus.isError) {
-      setGlobalStatus('degraded', [{ name: 'logline-daemon', status: 'warn', latency_ms: 0 }]);
-      return;
-    }
-
-    setGlobalStatus('healthy', [{ name: 'logline-daemon', status: 'ok', latency_ms: 0 }]);
-  }, [
-    daemonHealth.data?.ok,
-    daemonRuntimeStatus.isError,
-    setGlobalStatus,
-    setWSConnected,
-  ]);
+    setWSConnected(true);
+    setGlobalStatus('healthy', [{ name: 'ecosystem', status: 'ok', latency_ms: 0 }]);
+  }, [setGlobalStatus, setWSConnected]);
 
   const handleRemovePanel = (panelId: string) => {
     deletePanel.mutate(

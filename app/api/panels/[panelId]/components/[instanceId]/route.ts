@@ -1,67 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLogline } from '@/lib/api/logline-client';
+import { and, eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { panelComponents } from '@/db/schema';
 
 type Params = { params: Promise<{ panelId: string; instanceId: string }> };
 
-// PATCH /api/panels/[panelId]/components/[instanceId]
-// Rust-owned endpoint: proxy request to logline-daemon /v1/panels/:panelId/components/:instanceId.
 export async function PATCH(req: NextRequest, { params }: Params): Promise<NextResponse> {
   const { panelId, instanceId } = await params;
-  const search = req.nextUrl.search || '';
+  const body = await req.json().catch(() => null) as {
+    front_props?: Record<string, unknown>;
+    rect?: { x?: number; y?: number; w?: number; h?: number };
+  } | null;
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  const updates: Partial<typeof panelComponents.$inferInsert> = { updated_at: new Date() };
+  if (body?.front_props) updates.front_props = JSON.stringify(body.front_props);
+  if (body?.rect) {
+    if (typeof body.rect.x === 'number') updates.rect_x = body.rect.x;
+    if (typeof body.rect.y === 'number') updates.rect_y = body.rect.y;
+    if (typeof body.rect.w === 'number') updates.rect_w = body.rect.w;
+    if (typeof body.rect.h === 'number') updates.rect_h = body.rect.h;
   }
 
-  try {
-    const upstream = await callLogline(req, `/v1/panels/${panelId}/components/${instanceId}${search}`, 'PATCH', body);
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
+  await db.update(panelComponents)
+    .set(updates)
+    .where(and(eq(panelComponents.panel_id, panelId), eq(panelComponents.instance_id, instanceId)));
 
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  return NextResponse.json({ ok: true });
 }
 
-// DELETE /api/panels/[panelId]/components/[instanceId]
-// Rust-owned endpoint: proxy request to logline-daemon /v1/panels/:panelId/components/:instanceId.
-export async function DELETE(req: NextRequest, { params }: Params): Promise<NextResponse> {
+export async function DELETE(_req: NextRequest, { params }: Params): Promise<NextResponse> {
   const { panelId, instanceId } = await params;
-  const search = req.nextUrl.search || '';
-
-  try {
-    const upstream = await callLogline(req, `/v1/panels/${panelId}/components/${instanceId}${search}`, 'DELETE');
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
-
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  await db.delete(panelComponents)
+    .where(and(eq(panelComponents.panel_id, panelId), eq(panelComponents.instance_id, instanceId)));
+  return NextResponse.json({ ok: true });
 }

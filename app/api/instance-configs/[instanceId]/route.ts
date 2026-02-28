@@ -1,67 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLogline } from '@/lib/api/logline-client';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { instanceConfigs } from '@/db/schema';
 
 type Params = { params: Promise<{ instanceId: string }> };
 
-// GET /api/instance-configs/[instanceId]
-// Rust-owned endpoint: proxy request to logline-daemon /v1/instance-configs/:instanceId.
-export async function GET(req: NextRequest, { params }: Params): Promise<NextResponse> {
+export async function GET(_req: NextRequest, { params }: Params): Promise<NextResponse> {
   const { instanceId } = await params;
-  const search = req.nextUrl.search || '';
-
-  try {
-    const upstream = await callLogline(req, `/v1/instance-configs/${instanceId}${search}`, 'GET');
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
-
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  const [row] = await db.select().from(instanceConfigs).where(eq(instanceConfigs.instance_id, instanceId));
+  return NextResponse.json(row ?? {});
 }
 
-// PUT /api/instance-configs/[instanceId]
-// Rust-owned endpoint: proxy request to logline-daemon /v1/instance-configs/:instanceId.
 export async function PUT(req: NextRequest, { params }: Params): Promise<NextResponse> {
   const { instanceId } = await params;
-  const search = req.nextUrl.search || '';
+  const body = await req.json().catch(() => ({})) as Record<string, unknown>;
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
-  }
+  const values: typeof instanceConfigs.$inferInsert = {
+    instance_id: instanceId,
+    source_hub: typeof body.source_hub === 'string' ? body.source_hub : null,
+    source_origin: typeof body.source_origin === 'string' ? body.source_origin : null,
+    source_auth_ref: typeof body.source_auth_ref === 'string' ? body.source_auth_ref : null,
+    source_mode: typeof body.source_mode === 'string' ? body.source_mode : null,
+    source_interval_ms: typeof body.source_interval_ms === 'number' ? body.source_interval_ms : null,
+    proc_executor: typeof body.proc_executor === 'string' ? body.proc_executor : null,
+    proc_command: typeof body.proc_command === 'string' ? body.proc_command : null,
+    proc_args: JSON.stringify(body.proc_args ?? []),
+    proc_timeout_ms: typeof body.proc_timeout_ms === 'number' ? body.proc_timeout_ms : null,
+    proc_retries: typeof body.proc_retries === 'number' ? body.proc_retries : null,
+    proc_backoff: typeof body.proc_backoff === 'string' ? body.proc_backoff : null,
+    proc_error_mode: typeof body.proc_error_mode === 'string' ? body.proc_error_mode : null,
+    updated_at: new Date(),
+  };
 
-  try {
-    const upstream = await callLogline(req, `/v1/instance-configs/${instanceId}${search}`, 'PUT', body);
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
+  await db.insert(instanceConfigs).values(values).onConflictDoUpdate({
+    target: instanceConfigs.instance_id,
+    set: { ...values, instance_id: undefined, updated_at: new Date() },
+  });
 
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  return NextResponse.json({ ok: true });
 }

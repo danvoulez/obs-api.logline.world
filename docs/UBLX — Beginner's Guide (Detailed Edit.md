@@ -10,11 +10,11 @@ npm run dev
 
 # Terminal B: Rust daemon
 cd "/Users/ubl-ops/UBLX App/logline"
-LOGLINE_DAEMON_TOKEN=dev-token cargo run -p logline-daemon -- --host 127.0.0.1 --port 7600
+SUPABASE_DB_URL=dev-token cargo run -p logline-cli -- --host 127.0.0.1 --port 7600
 
 # Terminal C (optional): verify daemon identity
 cd "/Users/ubl-ops/UBLX App/logline"
-LOGLINE_DAEMON_URL=http://127.0.0.1:7600 LOGLINE_DAEMON_TOKEN=dev-token \
+SUPABASE_DB_URL=http://127.0.0.1:7600 SUPABASE_DB_URL=dev-token \
 cargo run -p logline-cli -- --json auth whoami
 ```
 
@@ -151,12 +151,12 @@ The `--` separator tells Cargo "everything after this is an argument to the prog
 ### Start the daemon (background service):
 
 ```bash
-LOGLINE_DAEMON_TOKEN=dev-token cargo run -p logline-daemon -- --host 127.0.0.1 --port 7600
+SUPABASE_DB_URL=dev-token cargo run -p logline-cli -- --host 127.0.0.1 --port 7600
 ```
 
 Breaking this down:
-- `LOGLINE_DAEMON_TOKEN=dev-token` — sets a secret token the daemon requires for auth (in dev, we use `dev-token`)
-- `cargo run -p logline-daemon` — compiles and runs the daemon package
+- `SUPABASE_DB_URL=dev-token` — sets a secret token the daemon requires for auth (in dev, we use `dev-token`)
+- `cargo run -p logline-cli` — compiles and runs the daemon package
 - `--host 127.0.0.1` — only listen on localhost (not exposed to the internet)
 - `--port 7600` — listen on port 7600
 
@@ -165,7 +165,7 @@ Once running, the daemon stays alive and responds to HTTP requests.
 ### Query the daemon (test that it's working):
 
 ```bash
-LOGLINE_DAEMON_URL=http://127.0.0.1:7600 LOGLINE_DAEMON_TOKEN=dev-token \
+SUPABASE_DB_URL=http://127.0.0.1:7600 SUPABASE_DB_URL=dev-token \
 cargo run -p logline-cli -- --json auth whoami
 ```
 
@@ -212,7 +212,7 @@ Instance-level overrides (app/api/instance-configs/[instanceId]/route.ts)
 ```
 
 The resolver that figures out the final effective config for any component is at:
-`logline/crates/logline-daemon/src/main.rs` (`get_effective_config`)
+`logline/crates/logline-cli/src/main.rs` (`get_effective_config`)
 
 And you can query it via:
 `app/api/effective-config/[instanceId]/route.ts`
@@ -332,7 +332,7 @@ Open `logline/crates/logline-cli/src/main.rs` and add a new subcommand to the CL
 
 **2. New daemon endpoint**
 
-Open `logline/crates/logline-daemon/src/main.rs` and add a new route to the HTTP router, then implement the handler.
+Open `logline/crates/logline-cli/src/main.rs` and add a new route to the HTTP router, then implement the handler.
 
 **3. Update shared types/contracts if needed**
 

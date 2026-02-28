@@ -1,62 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLogline } from '@/lib/api/logline-client';
+import { desc, eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { installedComponents } from '@/db/schema';
 
-// GET /api/installed-components
-// Rust-owned endpoint: proxy request to logline-daemon /v1/installed-components.
-export async function GET(req: NextRequest): Promise<NextResponse> {
-  const search = req.nextUrl.search || '';
-  try {
-    const upstream = await callLogline(req, `/v1/installed-components${search}`, 'GET');
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
-
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+export async function GET(): Promise<NextResponse> {
+  const rows = await db.select().from(installedComponents).orderBy(desc(installedComponents.installed_at));
+  return NextResponse.json(rows);
 }
 
-// POST /api/installed-components
-// Rust-owned endpoint: proxy request to logline-daemon /v1/installed-components.
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const search = req.nextUrl.search || '';
+  const body = await req.json().catch(() => null) as { componentId?: string } | null;
+  if (!body?.componentId) return NextResponse.json({ error: 'componentId is required' }, { status: 400 });
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  const [row] = await db.insert(installedComponents).values({ component_id: body.componentId })
+    .onConflictDoNothing()
+    .returning();
+
+  if (!row) {
+    const [existing] = await db.select().from(installedComponents).where(eq(installedComponents.component_id, body.componentId));
+    return NextResponse.json(existing);
   }
 
-  try {
-    const upstream = await callLogline(req, `/v1/installed-components${search}`, 'POST', body);
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
-
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  return NextResponse.json(row, { status: 201 });
 }

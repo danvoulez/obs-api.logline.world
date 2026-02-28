@@ -44,7 +44,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
           session,
           user: session?.user ?? null,
           loading: false,
-          isRecovery: event === 'PASSWORD_RECOVERY' ? true : prev.isRecovery,
+          isRecovery: event === 'PASSWORD_RECOVERY' ? true : event === 'USER_UPDATED' || event === 'SIGNED_IN' || event === 'SIGNED_OUT' ? false : prev.isRecovery,
         }));
       },
     );

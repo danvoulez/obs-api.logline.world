@@ -1,12 +1,8 @@
 import type { Config } from 'drizzle-kit';
 
-const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
+const url = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || process.env.DATABASE_URL_UNPOOLED;
 if (!url) {
-  throw new Error(
-    'No database connection string found.\n' +
-    'Pass it at runtime: DATABASE_URL_UNPOOLED=postgresql://... npx drizzle-kit push\n' +
-    'Secrets never live in .env files.'
-  );
+  throw new Error('No database connection string found. Set SUPABASE_DB_URL (preferred) or DATABASE_URL.');
 }
 
 export default {

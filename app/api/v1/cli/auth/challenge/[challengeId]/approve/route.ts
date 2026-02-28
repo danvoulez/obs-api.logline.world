@@ -1,39 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLogline } from '@/lib/api/logline-client';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { cliAuthChallenges } from '@/db/schema';
+import { getUserFromAuthHeader } from '@/lib/auth/supabase-server';
 
-// POST /api/v1/cli/auth/challenge/:challengeId/approve
-// Rust-owned endpoint: proxy request to logline-daemon /v1/cli/auth/challenge/:challengeId/approve.
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ challengeId: string }> }
-): Promise<NextResponse> {
+type Params = { params: Promise<{ challengeId: string }> };
+
+export async function POST(req: NextRequest, { params }: Params): Promise<NextResponse> {
+  const user = await getUserFromAuthHeader(req.headers.get('authorization'));
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { challengeId } = await params;
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
-  }
+  const body = await req.json().catch(() => ({})) as { tenant_id?: string };
 
-  try {
-    const upstream = await callLogline(req, `/v1/cli/auth/challenge/${challengeId}/approve`, 'POST', body);
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
+  const [updated] = await db.update(cliAuthChallenges).set({
+    status: 'approved',
+    user_id: user.id,
+    tenant_id: body.tenant_id ?? null,
+    approved_at: new Date(),
+    session_token: crypto.randomUUID(),
+  }).where(eq(cliAuthChallenges.challenge_id, challengeId)).returning();
 
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  if (!updated) return NextResponse.json({ error: 'Challenge not found' }, { status: 404 });
+  return NextResponse.json(updated);
 }

@@ -1,27 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLogline } from '@/lib/api/logline-client';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { tenantMemberships, users } from '@/db/schema';
+import { getUserFromAuthHeader } from '@/lib/auth/supabase-server';
 
-// GET /api/v1/auth/whoami
-// Rust-owned endpoint: proxy request to logline-daemon /v1/auth/whoami.
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  try {
-    const upstream = await callLogline(req, '/v1/auth/whoami', 'GET');
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
+  const authUser = await getUserFromAuthHeader(req.headers.get('authorization'));
+  if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  const [user] = await db.select().from(users).where(eq(users.user_id, authUser.id));
+  const memberships = await db.select().from(tenantMemberships).where(eq(tenantMemberships.user_id, authUser.id));
+
+  return NextResponse.json({
+    user: user ?? { user_id: authUser.id, email: authUser.email ?? null, display_name: authUser.user_metadata?.display_name ?? null },
+    memberships,
+  });
 }

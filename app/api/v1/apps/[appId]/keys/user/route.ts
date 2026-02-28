@@ -1,69 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLogline } from '@/lib/api/logline-client';
+import { and, eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { userProviderKeys } from '@/db/schema';
+import { getUserFromAuthHeader } from '@/lib/auth/supabase-server';
 
-// GET /api/v1/apps/:appId/keys/user
-// Rust-owned endpoint: proxy request to logline-daemon /v1/apps/:appId/keys/user.
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ appId: string }> }
-): Promise<NextResponse> {
+type Params = { params: Promise<{ appId: string }> };
+
+export async function GET(req: NextRequest, { params }: Params): Promise<NextResponse> {
+  const authUser = await getUserFromAuthHeader(req.headers.get('authorization'));
+  if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const { appId } = await params;
+  const tenantId = req.nextUrl.searchParams.get('tenant_id');
+  if (!tenantId) return NextResponse.json({ error: 'tenant_id is required' }, { status: 400 });
 
-  try {
-    const upstream = await callLogline(req, `/v1/apps/${appId}/keys/user`, 'GET');
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
-
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  const rows = await db.select().from(userProviderKeys).where(and(
+    eq(userProviderKeys.app_id, appId),
+    eq(userProviderKeys.tenant_id, tenantId),
+    eq(userProviderKeys.user_id, authUser.id),
+  ));
+  return NextResponse.json(rows);
 }
 
-// POST /api/v1/apps/:appId/keys/user
-// Rust-owned endpoint: proxy request to logline-daemon /v1/apps/:appId/keys/user.
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ appId: string }> }
-): Promise<NextResponse> {
+export async function POST(req: NextRequest, { params }: Params): Promise<NextResponse> {
+  const authUser = await getUserFromAuthHeader(req.headers.get('authorization'));
+  if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const { appId } = await params;
-
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
+  if (!body?.tenant_id || !body.provider || !body.key_label || !body.encrypted_key) {
+    return NextResponse.json({ error: 'tenant_id, provider, key_label and encrypted_key are required' }, { status: 400 });
   }
 
-  try {
-    const upstream = await callLogline(req, `/v1/apps/${appId}/keys/user`, 'POST', body);
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
+  const [row] = await db.insert(userProviderKeys).values({
+    key_id: crypto.randomUUID(),
+    tenant_id: String(body.tenant_id),
+    app_id: appId,
+    user_id: authUser.id,
+    provider: String(body.provider),
+    key_label: String(body.key_label),
+    encrypted_key: String(body.encrypted_key),
+    metadata: (body.metadata && typeof body.metadata === 'object') ? body.metadata : {},
+  }).returning();
 
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  return NextResponse.json(row, { status: 201 });
 }

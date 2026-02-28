@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Package, Trash2, Check, Info, Shield, Plus } from 'lucide-react';
-import { MOCK_COMPONENTS } from '@/mocks/ublx-mocks';
+import { COMPONENT_CATALOG } from '@/lib/config/component-catalog';
 import { ComponentManifest } from '@/types/ublx';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -27,7 +27,7 @@ export function ComponentStore() {
   const activePanel = panels[activePanelIndex];
   const installedIdsInActivePanel = activePanel?.components?.map((c) => c.component_id) ?? [];
 
-  const filteredComponents = MOCK_COMPONENTS.filter((comp) => {
+  const filteredComponents = COMPONENT_CATALOG.filter((comp) => {
     const matchesSearch =
       comp.name.toLowerCase().includes(storeSearch.toLowerCase()) ||
       comp.component_id.toLowerCase().includes(storeSearch.toLowerCase());

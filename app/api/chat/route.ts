@@ -1,62 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLogline } from '@/lib/api/logline-client';
+import { and, asc, desc, eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { chatMessages } from '@/db/schema';
 
-// GET /api/chat
-// Rust-owned endpoint: proxy request to logline-daemon /v1/chat.
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const search = req.nextUrl.search || '';
-  try {
-    const upstream = await callLogline(req, `/v1/chat${search}`, 'GET');
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
+  const sessionId = req.nextUrl.searchParams.get('session_id') ?? '';
+  if (!sessionId) return NextResponse.json([]);
 
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  const workspaceId = req.headers.get('x-workspace-id') || 'default';
+  const appId = req.headers.get('x-app-id') || 'ublx';
+
+  const rows = await db.select().from(chatMessages)
+    .where(and(eq(chatMessages.session_id, sessionId), eq(chatMessages.workspace_id, workspaceId), eq(chatMessages.app_id, appId)))
+    .orderBy(asc(chatMessages.created_at));
+
+  return NextResponse.json(rows);
 }
 
-// POST /api/chat
-// Rust-owned endpoint: proxy request to logline-daemon /v1/chat.
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const search = req.nextUrl.search || '';
-
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  const workspaceId = req.headers.get('x-workspace-id') || 'default';
+  const appId = req.headers.get('x-app-id') || 'ublx';
+  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
+  if (!body?.session_id || !body?.role || !body?.content) {
+    return NextResponse.json({ error: 'session_id, role and content are required' }, { status: 400 });
   }
 
-  try {
-    const upstream = await callLogline(req, `/v1/chat${search}`, 'POST', body);
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
+  const [row] = await db.insert(chatMessages).values({
+    id: crypto.randomUUID(),
+    workspace_id: workspaceId,
+    app_id: appId,
+    session_id: String(body.session_id),
+    panel_id: typeof body.panel_id === 'string' ? body.panel_id : null,
+    instance_id: typeof body.instance_id === 'string' ? body.instance_id : null,
+    role: String(body.role),
+    content: String(body.content),
+    model_used: typeof body.model_used === 'string' ? body.model_used : null,
+    latency_ms: typeof body.latency_ms === 'number' ? body.latency_ms : null,
+  }).returning();
 
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  return NextResponse.json(row, { status: 201 });
 }

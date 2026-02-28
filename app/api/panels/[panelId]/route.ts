@@ -1,67 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLogline } from '@/lib/api/logline-client';
+import { and, eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { panels } from '@/db/schema';
 
 type Params = { params: Promise<{ panelId: string }> };
 
-// PATCH /api/panels/[panelId]
-// Rust-owned endpoint: proxy request to logline-daemon /v1/panels/:panelId.
 export async function PATCH(req: NextRequest, { params }: Params): Promise<NextResponse> {
   const { panelId } = await params;
-  const search = req.nextUrl.search || '';
+  const workspaceId = req.headers.get('x-workspace-id') || 'default';
+  const body = await req.json().catch(() => null) as { name?: string } | null;
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
-  }
+  const [updated] = await db.update(panels)
+    .set({ name: body?.name?.trim() || 'Untitled', updated_at: new Date() })
+    .where(and(eq(panels.panel_id, panelId), eq(panels.workspace_id, workspaceId)))
+    .returning();
 
-  try {
-    const upstream = await callLogline(req, `/v1/panels/${panelId}${search}`, 'PATCH', body);
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
-
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  if (!updated) return NextResponse.json({ error: 'Panel not found' }, { status: 404 });
+  return NextResponse.json(updated);
 }
 
-// DELETE /api/panels/[panelId]
-// Rust-owned endpoint: proxy request to logline-daemon /v1/panels/:panelId.
 export async function DELETE(req: NextRequest, { params }: Params): Promise<NextResponse> {
   const { panelId } = await params;
-  const search = req.nextUrl.search || '';
+  const workspaceId = req.headers.get('x-workspace-id') || 'default';
 
-  try {
-    const upstream = await callLogline(req, `/v1/panels/${panelId}${search}`, 'DELETE');
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
+  const deleted = await db.delete(panels)
+    .where(and(eq(panels.panel_id, panelId), eq(panels.workspace_id, workspaceId)))
+    .returning({ panel_id: panels.panel_id });
 
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  if (deleted.length === 0) return NextResponse.json({ error: 'Panel not found' }, { status: 404 });
+  return NextResponse.json({ ok: true });
 }
