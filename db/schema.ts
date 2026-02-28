@@ -219,6 +219,7 @@ export const cliPasskeyCredentials = pgTable('cli_passkey_credentials', {
   status:        text('status').notNull().default('active'), // active | revoked
   created_at:    timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   last_used_at:  timestamp('last_used_at', { withTimezone: true, mode: 'date' }),
+  revoked_at:    timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
 }, (t) => [unique().on(t.user_id, t.device_name)]);
 
 // ─── 16. Founder signing keys ─────────────────────────────────────────────────
