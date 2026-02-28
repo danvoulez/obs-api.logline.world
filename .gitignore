@@ -1,0 +1,14 @@
+node_modules/
+.next/
+coverage/
+.DS_Store
+*.log
+*.tsbuildinfo
+.env*
+!.env.example
+data/
+logline/target/
+logline/.cargo/
+docs/LOGLINE.WORLD — Official Ecosystem Doc.md
+.vercel
+.env*.local

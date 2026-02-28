@@ -1,0 +1,187 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg: #1f1f1f;
+    --shell: #202020;
+    --tab-strip: #2a2a2a;
+    --card: #262626;
+    --panel-surface: transparent;
+    --accent: #3b82f6;
+    --signaling-ok: #10b981;
+    --signaling-error: #ef4444;
+    --border: rgba(255, 255, 255, 0.12);
+  }
+}
+
+@layer utilities {
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+
+  .glass {
+    background: var(--tab-strip);
+    border: 1px solid var(--border);
+  }
+
+  .hardware-border {
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+  }
+
+  .glow-blue {
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);
+  }
+
+  .glow-emerald {
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.15);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+body {
+  background-color: var(--bg);
+  color: #fff;
+  margin: 0;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+.safe-app-frame {
+  min-height: 100dvh;
+  height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  background: var(--shell);
+}
+
+@supports not (height: 100dvh) {
+  .safe-app-frame {
+    min-height: 100vh;
+    height: 100vh;
+  }
+}
+
+.panel-stage {
+  container-type: inline-size;
+}
+
+.panel-canvas {
+  width: 100%;
+  height: auto;
+  min-height: min(70dvh, 760px);
+}
+
+.component-layout-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 10px;
+  align-content: start;
+  padding: 4px;
+}
+
+.component-slot {
+  width: 100%;
+}
+
+.slot--unit {
+  grid-column: span 1;
+  min-height: 104px;
+  aspect-ratio: 1 / 1;
+}
+
+.slot--line {
+  grid-column: span 1;
+  min-height: 96px;
+}
+
+.slot--block {
+  grid-column: span 1;
+  min-height: 204px;
+}
+
+.priority--high {
+  order: 0;
+}
+
+.priority--normal {
+  order: 1;
+}
+
+.priority--low {
+  order: 2;
+}
+
+@media (min-width: 560px) {
+  .component-layout-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .slot--line {
+    grid-column: span 2;
+    min-height: 104px;
+  }
+
+  .slot--block {
+    grid-column: span 2;
+    min-height: 220px;
+  }
+}
+
+@media (min-width: 900px) {
+  .component-layout-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .slot--line {
+    grid-column: span 3;
+  }
+
+  .slot--block {
+    grid-column: span 4;
+    min-height: 240px;
+  }
+}
+
+@media (max-width: 640px) {
+  .panel-canvas {
+    min-height: 62dvh;
+  }
+
+  .slot--unit {
+    min-height: 92px;
+  }
+
+  .slot--line {
+    min-height: 92px;
+  }
+
+  .slot--block {
+    min-height: 188px;
+  }
+}

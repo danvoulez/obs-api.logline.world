@@ -1,0 +1,27 @@
+---
+description: Rules for the UBLX HQ Observability & API app
+globs:
+alwaysApply: true
+---
+
+# UBLX HQ — Observability & API
+
+## What This App Is
+
+This is the observability dashboard and API layer for the LogLine ecosystem. It READS and DISPLAYS data. It does NOT contain business logic.
+
+## Hard Rules
+
+1. **API routes are data readers only** — they query Supabase via PostgREST or Drizzle and return results. They never make infrastructure decisions.
+
+2. **No secrets in files** — `.env` contains only public values (Supabase URL, anon key). All real secrets are in the LogLine CLI's Keychain.
+
+3. **No database migrations here** — schema changes are managed by the LogLine CLI in the `logic.logline.world` repo via `logline db migrate review/apply`.
+
+4. **Auth is Supabase** — this app uses `@supabase/supabase-js` for authentication. Same users, same RLS, same JWT as the CLI.
+
+5. **If it needs to "do something"** (deploy, migrate, create tenant, etc.), that's a CLI command. This app just shows the results.
+
+## Related Repo
+
+Infrastructure and CLI: `github.com/danvoulez/logic.logline.world`
