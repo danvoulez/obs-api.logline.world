@@ -1,34 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLogline } from '@/lib/api/logline-client';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { cliAuthChallenges } from '@/db/schema';
 
-// POST /api/v1/cli/auth/challenge
-// Rust-owned endpoint: proxy request to logline-daemon /v1/cli/auth/challenge.
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  let body: unknown = undefined;
-  try {
-    body = await req.json();
-  } catch {
-    body = undefined;
-  }
+  const body = await req.json().catch(() => null) as { nonce?: string; device_name?: string; expires_at?: string } | null;
+  if (!body?.nonce) return NextResponse.json({ error: 'nonce is required' }, { status: 400 });
 
-  try {
-    const upstream = await callLogline(req, '/v1/cli/auth/challenge', 'POST', body);
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
+  const challengeId = crypto.randomUUID();
+  const [row] = await db.insert(cliAuthChallenges).values({
+    challenge_id: challengeId,
+    nonce: body.nonce,
+    status: 'pending',
+    device_name: body.device_name ?? null,
+    expires_at: body.expires_at ? new Date(body.expires_at) : new Date(Date.now() + 5 * 60_000),
+  }).returning();
 
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  return NextResponse.json(row, { status: 201 });
+}
+
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  const challengeId = req.nextUrl.searchParams.get('challenge_id');
+  if (!challengeId) return NextResponse.json({ error: 'challenge_id is required' }, { status: 400 });
+  const [row] = await db.select().from(cliAuthChallenges).where(eq(cliAuthChallenges.challenge_id, challengeId));
+  if (!row) return NextResponse.json({ error: 'Challenge not found' }, { status: 404 });
+  return NextResponse.json(row);
 }

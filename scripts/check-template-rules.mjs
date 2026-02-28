@@ -11,7 +11,7 @@ const files = {
   panelRenderer: path.join(root, 'components/panel/PanelRenderer.tsx'),
   componentRenderer: path.join(root, 'components/panel/ComponentRenderer.tsx'),
   templateContract: path.join(root, 'lib/config/component-template.ts'),
-  effectiveConfig: path.join(root, 'logline/crates/logline-daemon/src/main.rs'),
+  effectiveConfig: path.join(root, 'app/api/effective-config/[instanceId]/route.ts'),
   templateDoc: path.join(root, 'docs/TEMPLATE_CONTRACT.md'),
 };
 
@@ -86,11 +86,11 @@ mustContain(warnings, panelRenderer, 'resolveTemplateContract', 'Panel sizing ru
 
 // Rule group: resolver enforces scope and override semantics
 [
-  'resolve_scoped_app_layer',
-  'should_override_cascade',
-  'parse_imported_tags(&instance_layer, "import_app_tags")',
-  'parse_imported_tags(&instance_layer, "import_tab_tags")',
-  'app_scope',
+  'layers',
+  'effective',
+  'bindings',
+  'missing_required_tags',
+  'component_id',
 ].forEach((needle) => mustContain(warnings, effectiveConfig, needle, 'Cascade semantics rule'));
 
 // Rule group: front face should stay essential (no heavy config copy)

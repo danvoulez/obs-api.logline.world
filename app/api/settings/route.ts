@@ -1,62 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLogline } from '@/lib/api/logline-client';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { appSettings } from '@/db/schema';
 
-// GET /api/settings
-// Rust-owned endpoint: proxy request to logline-daemon /v1/settings.
-export async function GET(req: NextRequest): Promise<NextResponse> {
-  const search = req.nextUrl.search || '';
-  try {
-    const upstream = await callLogline(req, `/v1/settings${search}`, 'GET');
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
-
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+function parseValue(value: string): unknown {
+  try { return JSON.parse(value); } catch { return value; }
 }
 
-// PATCH /api/settings
-// Rust-owned endpoint: proxy request to logline-daemon /v1/settings.
+export async function GET(): Promise<NextResponse> {
+  const rows = await db.select().from(appSettings);
+  return NextResponse.json(Object.fromEntries(rows.map((r) => [r.key, parseValue(r.value)])));
+}
+
 export async function PATCH(req: NextRequest): Promise<NextResponse> {
-  const search = req.nextUrl.search || '';
+  const body = await req.json().catch(() => null) as { key?: string; value?: unknown } | null;
+  if (!body?.key) return NextResponse.json({ error: 'key is required' }, { status: 400 });
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
-  }
+  await db.insert(appSettings).values({ key: body.key, value: JSON.stringify(body.value ?? null) }).onConflictDoUpdate({
+    target: appSettings.key,
+    set: { value: JSON.stringify(body.value ?? null), updated_at: new Date() },
+  });
 
-  try {
-    const upstream = await callLogline(req, `/v1/settings${search}`, 'PATCH', body);
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
-
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  return NextResponse.json({ ok: true });
 }

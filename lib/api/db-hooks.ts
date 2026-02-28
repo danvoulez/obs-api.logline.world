@@ -517,83 +517,32 @@ export function useLogStatus() {
   });
 }
 
-// ── Logline daemon wiring ────────────────────────────────────────────────────
-export function useDaemonHealth() {
-  return useQuery<{ ok: boolean }>({
-    queryKey: ['logline', 'health'],
-    queryFn: () => apiFetch('/api/logline/v1/health'),
-    refetchInterval: 15_000,
-  });
-}
-
-export function useDaemonRuntimeStatus() {
-  return useQuery<Record<string, unknown>>({
-    queryKey: ['logline', 'status'],
-    queryFn: () => apiFetch('/api/logline/v1/status'),
-    refetchInterval: 20_000,
-  });
-}
-
-export function useDaemonWhoami() {
-  return useQuery<Record<string, unknown>>({
-    queryKey: ['logline', 'whoami'],
-    queryFn: () => apiFetch('/api/logline/v1/auth/whoami'),
+export function useEcosystemHealth() {
+  return useQuery<{ ok: boolean; user_id?: string; email?: string }>({
+    queryKey: ['ecosystem', 'health'],
+    queryFn: () => apiFetch('/api/v1/auth/whoami'),
     refetchInterval: 30_000,
   });
 }
 
-export function useDaemonEvents(since?: string) {
-  return useQuery<Record<string, unknown>[]>({
-    queryKey: ['logline', 'events', since ?? 'latest'],
-    queryFn: () => {
-      const q = since ? `?since=${encodeURIComponent(since)}` : '';
-      return apiFetch(`/api/logline/v1/events${q}`);
-    },
-    refetchInterval: 20_000,
+type FuelEvent = {
+  cursor: string | number;
+  kind: string;
+  run_id?: string;
+  [key: string]: unknown;
+};
+
+export function useFuelEvents(appId?: string) {
+  return useQuery<FuelEvent[]>({
+    queryKey: ['fuel', appId],
+    queryFn: () => apiFetch<FuelEvent[]>(`/api/fuel-events?app_id=${encodeURIComponent(appId ?? '')}`),
+    refetchInterval: 30_000,
   });
 }
 
-export function useDaemonRunIntent() {
-  const qc = useQueryClient();
-  return useMutation<Record<string, unknown>, Error, { intent_type: string; payload?: Record<string, string> }>({
-    mutationFn: (body) =>
-      apiFetch('/api/logline/v1/intents/run', {
-        method: 'POST',
-        body: JSON.stringify({ intent_type: body.intent_type, payload: body.payload ?? {} }),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['logline', 'status'] });
-      qc.invalidateQueries({ queryKey: ['logline', 'events'] });
-    },
-  });
-}
-
-export function useDaemonStopIntent() {
-  const qc = useQueryClient();
-  return useMutation<Record<string, unknown>, Error, { run_id: string }>({
-    mutationFn: (body) =>
-      apiFetch('/api/logline/v1/intents/stop', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['logline', 'status'] });
-      qc.invalidateQueries({ queryKey: ['logline', 'events'] });
-    },
-  });
-}
-
-export function useDaemonSelectProfile() {
-  const qc = useQueryClient();
-  return useMutation<Record<string, unknown>, Error, { profile_id: string }>({
-    mutationFn: (body) =>
-      apiFetch('/api/logline/v1/profiles/select', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['logline', 'status'] });
-      qc.invalidateQueries({ queryKey: ['logline', 'events'] });
-    },
+export function useApps() {
+  return useQuery<{ app_id: string; name: string; [key: string]: unknown }[]>({
+    queryKey: ['apps'],
+    queryFn: () => apiFetch<{ app_id: string; name: string; [key: string]: unknown }[]>('/api/apps'),
   });
 }

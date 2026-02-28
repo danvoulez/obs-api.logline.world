@@ -1,34 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLogline } from '@/lib/api/logline-client';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
+import { db } from '@/db';
+import { tenantEmailAllowlist, tenantMemberships, users } from '@/db/schema';
+import { getUserFromAuthHeader } from '@/lib/auth/supabase-server';
 
-// POST /api/v1/auth/onboard/claim
-// Rust-owned endpoint: proxy request to logline-daemon /v1/auth/onboard/claim.
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  const authUser = await getUserFromAuthHeader(req.headers.get('authorization'));
+  if (!authUser?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const email = authUser.email.trim().toLowerCase();
+  await db.insert(users).values({ user_id: authUser.id, email: authUser.email }).onConflictDoNothing();
+
+  const allowlistRows = await db.select().from(tenantEmailAllowlist)
+    .where(and(eq(tenantEmailAllowlist.email_normalized, email), or(isNull(tenantEmailAllowlist.expires_at), sql`${tenantEmailAllowlist.expires_at} > now()`)));
+
+  for (const row of allowlistRows) {
+    await db.insert(tenantMemberships).values({ tenant_id: row.tenant_id, user_id: authUser.id, role: row.role_default }).onConflictDoNothing();
   }
 
-  try {
-    const upstream = await callLogline(req, '/v1/auth/onboard/claim', 'POST', body);
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
-
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  const memberships = await db.select().from(tenantMemberships).where(eq(tenantMemberships.user_id, authUser.id));
+  return NextResponse.json({ ok: true, memberships });
 }

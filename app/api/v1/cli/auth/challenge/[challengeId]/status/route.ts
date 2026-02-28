@@ -1,32 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLogline } from '@/lib/api/logline-client';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { cliAuthChallenges } from '@/db/schema';
 
-// GET /api/v1/cli/auth/challenge/:challengeId/status
-// Rust-owned endpoint: proxy request to logline-daemon /v1/cli/auth/challenge/:challengeId/status.
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ challengeId: string }> }
-): Promise<NextResponse> {
+type Params = { params: Promise<{ challengeId: string }> };
+
+export async function GET(_req: NextRequest, { params }: Params): Promise<NextResponse> {
   const { challengeId } = await params;
-
-  try {
-    const upstream = await callLogline(req, `/v1/cli/auth/challenge/${challengeId}/status`, 'GET');
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
-
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  const [row] = await db.select().from(cliAuthChallenges).where(eq(cliAuthChallenges.challenge_id, challengeId));
+  if (!row) return NextResponse.json({ error: 'Challenge not found' }, { status: 404 });
+  return NextResponse.json(row);
 }

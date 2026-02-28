@@ -1,34 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLogline } from '@/lib/api/logline-client';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { tenants } from '@/db/schema';
 
-// POST /api/v1/auth/tenant/resolve
-// Rust-owned endpoint: proxy request to logline-daemon /v1/auth/tenant/resolve.
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
-  }
-
-  try {
-    const upstream = await callLogline(req, '/v1/auth/tenant/resolve', 'POST', body);
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const text = await upstream.text();
-
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to reach logline daemon',
-      },
-      { status: 502 }
-    );
-  }
+  const body = await req.json().catch(() => null) as { slug?: string } | null;
+  if (!body?.slug) return NextResponse.json({ error: 'slug is required' }, { status: 400 });
+  const [tenant] = await db.select().from(tenants).where(eq(tenants.slug, body.slug));
+  if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+  return NextResponse.json(tenant);
 }

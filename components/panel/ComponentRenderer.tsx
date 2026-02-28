@@ -3,8 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { PanelComponentInstance } from '@/types/ublx';
 import {
-  useDaemonEvents,
-  useDaemonRuntimeStatus,
+  useFuelEvents,
   useEffectiveConfig,
   useInstanceConfig,
   usePanelSettings,
@@ -15,7 +14,7 @@ import {
 } from '@/lib/api/db-hooks';
 import { Settings2, Repeat2 } from 'lucide-react';
 import { useUIStore } from '@/stores/ui-store';
-import { MOCK_COMPONENTS } from '@/mocks/ublx-mocks';
+import { COMPONENT_CATALOG } from '@/lib/config/component-catalog';
 import { motion } from 'motion/react';
 import { BlockPrimitive, LinePrimitive, SignalSparklinePrimitive, TemplateHeader, TemplateIndicators, UnitPrimitive } from './TemplatePrimitives';
 import { TemplateHealthState, TemplateInfoTone, TemplateSize, emitTemplateTelemetry, resolveTemplateContract, TEMPLATE_CONTRACT_VERSION } from '@/lib/config/component-template';
@@ -171,8 +170,7 @@ export function ComponentRenderer({ instance, panelId }: ComponentRendererProps)
   const panelSettings = usePanelSettings(panelId);
   const appSettings = useSettings();
   const statusLog = useStatusLog(30);
-  const runtimeStatus = useDaemonRuntimeStatus();
-  const daemonEvents = useDaemonEvents();
+  const fuelEvents = useFuelEvents();
 
   const updateFrontProps = useUpdateComponentFrontProps();
   const saveInstanceConfig = useSaveInstanceConfig();
@@ -207,7 +205,7 @@ export function ComponentRenderer({ instance, panelId }: ComponentRendererProps)
   const isSelected = selectedInstanceByPanel[panelId] === instance.instance_id;
   const isFlipped = flippedInstances[instance.instance_id] || false;
 
-  const manifest = MOCK_COMPONENTS.find((m) => m.component_id === instance.component_id);
+  const manifest = COMPONENT_CATALOG.find((m) => m.component_id === instance.component_id);
   const title = manifest?.name ?? instance.component_id;
 
   const missingRequiredTags = effectiveConfig.data?.missing_required_tags ?? [];
@@ -243,7 +241,7 @@ export function ComponentRenderer({ instance, panelId }: ComponentRendererProps)
       return status !== '' && status !== 'ok' && status !== 'healthy';
     }).length;
 
-    const events = Array.isArray(daemonEvents.data) ? daemonEvents.data : [];
+    const events = Array.isArray(fuelEvents.data) ? fuelEvents.data : [];
     const eventCount = events.length;
     const latencySeries = rows
       .map((row) => (typeof row.latency_ms === 'number' && Number.isFinite(row.latency_ms) ? row.latency_ms : null))
@@ -251,8 +249,7 @@ export function ComponentRenderer({ instance, panelId }: ComponentRendererProps)
       .slice(0, 8)
       .reverse();
 
-    const runtimeOk = runtimeStatus.isError ? false : true;
-    const statusLabel = runtimeOk ? 'online' : 'degraded';
+    const statusLabel = fuelEvents.isError ? 'degraded' : 'online';
 
     return {
       latestStatus,
@@ -261,7 +258,7 @@ export function ComponentRenderer({ instance, panelId }: ComponentRendererProps)
       statusLabel,
       latencySeries,
     };
-  }, [statusLog.data, daemonEvents.data, runtimeStatus.isError]);
+  }, [statusLog.data, fuelEvents.data, fuelEvents.isError]);
   const signal = useMemo(
     () => frontSignals(instance.component_id, missingRequiredTags.length, appScope, liveSignal),
     [instance.component_id, missingRequiredTags.length, appScope, liveSignal]

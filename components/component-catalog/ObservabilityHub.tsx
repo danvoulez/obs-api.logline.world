@@ -3,10 +3,9 @@
 import React from 'react';
 import { Activity, Shield, Server, ListTree } from 'lucide-react';
 import {
-  useDaemonHealth,
-  useDaemonRuntimeStatus,
-  useDaemonWhoami,
-  useDaemonEvents,
+  useEcosystemHealth,
+  useFuelEvents,
+  useApps,
   useGatewayFuel,
   useGatewayFuelDaily,
   useGatewayUsageDaily,
@@ -42,10 +41,9 @@ type ObservabilityHubProps = {
 };
 
 export function ObservabilityHub({ effective, bindings, missing_required_tags }: ObservabilityHubProps) {
-  const health = useDaemonHealth();
-  const runtime = useDaemonRuntimeStatus();
-  const whoami = useDaemonWhoami();
-  const events = useDaemonEvents();
+  const health = useEcosystemHealth();
+  const apps = useApps();
+  const events = useFuelEvents(typeof effective?.app_scope === 'string' ? effective.app_scope : undefined);
 
   const obsSettings = resolveObservabilityCascadeSettings(effective ?? {});
   const resolvedBindings = bindings ?? {};
@@ -81,19 +79,19 @@ export function ObservabilityHub({ effective, bindings, missing_required_tags }:
     {
       label: 'Profile',
       icon: Server,
-      value: tiny(runtime.data?.active_profile),
+      value: String(Array.isArray(apps.data) ? apps.data.length : 0),
       tone: 'text-blue-300',
     },
     {
       label: 'Auth',
       icon: Shield,
-      value: tiny(whoami.data?.auth_type),
+      value: health.isSuccess ? 'supabase' : 'unknown',
       tone: 'text-violet-300',
     },
     {
       label: 'Queue',
       icon: ListTree,
-      value: tiny(runtime.data?.queue_depth),
+      value: String(Array.isArray(events.data) ? events.data.length : 0),
       tone: 'text-amber-300',
     },
     {

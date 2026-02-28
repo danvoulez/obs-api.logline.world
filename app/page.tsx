@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useUIStore } from '@/stores/ui-store';
 import { usePanels, useCreatePanel, useSettings, useUpdateSetting } from '@/lib/api/db-hooks';
 import { AppShell } from '@/components/shell/AppShell';
+import { AppErrorBoundary } from '@/components/shell/AppErrorBoundary';
 import { PanelRenderer } from '@/components/panel/PanelRenderer';
 import { motion, AnimatePresence } from 'motion/react';
 import { QuickAction } from '@/components/component-catalog/QuickAction';
@@ -360,6 +361,16 @@ function Dashboard() {
     );
   };
 
+  if (panelsQuery.isLoading) {
+    return (
+      <AppShell>
+        <div className="w-full h-full flex items-center justify-center">
+          <span className="text-white/30 text-xs">Loading tabs…</span>
+        </div>
+      </AppShell>
+    );
+  }
+
   if (!activePanel) {
     return (
       <AppShell>
@@ -393,6 +404,7 @@ function Dashboard() {
 
   return (
     <AppShell>
+      <AppErrorBoundary>
       <div className="w-full h-full relative">
         <AnimatePresence mode="wait">
           <motion.div
@@ -438,6 +450,7 @@ function Dashboard() {
           </motion.div>
         </AnimatePresence>
       </div>
+      </AppErrorBoundary>
     </AppShell>
   );
 }

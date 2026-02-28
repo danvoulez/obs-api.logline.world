@@ -2,15 +2,14 @@
 
 import React from 'react';
 import { Cpu, Zap, Shield, Globe } from 'lucide-react';
-import { useDaemonRuntimeStatus, useDaemonWhoami } from '@/lib/api/db-hooks';
+import { useEcosystemHealth, useStatusLog } from '@/lib/api/db-hooks';
 
 export function LLMStatus() {
-  const runtimeStatus = useDaemonRuntimeStatus();
-  const whoami = useDaemonWhoami();
+  const ecosystem = useEcosystemHealth();
+  const statusLog = useStatusLog(20);
 
-  const whoamiType =
-    typeof whoami.data?.auth_type === 'string' ? (whoami.data.auth_type as string) : 'unknown';
-  const runtimeMode = runtimeStatus.isSuccess ? 'ONLINE' : runtimeStatus.isLoading ? 'CHECKING' : 'OFFLINE';
+  const whoamiType = ecosystem.isSuccess ? 'supabase' : 'unknown';
+  const runtimeMode = ecosystem.isSuccess ? 'ONLINE' : ecosystem.isLoading ? 'CHECKING' : 'OFFLINE';
 
   const providers = [
     { name: 'OpenAI', status: 'ok', latency: '120ms', model: 'gpt-4o', load: 45 },
@@ -26,8 +25,8 @@ export function LLMStatus() {
         {[
           { label: 'Mode', val: runtimeMode, color: 'text-blue-400', icon: Zap },
           { label: 'Auth', val: whoamiType.toUpperCase(), color: 'text-blue-400', icon: Shield },
-          { label: 'Routing', val: 'DAEMON', color: 'text-white', icon: Globe },
-          { label: 'Jobs', val: String(runtimeStatus.data?.running_jobs ?? 0), color: 'text-white', icon: Cpu },
+          { label: 'Routing', val: 'SUPABASE', color: 'text-white', icon: Globe },
+          { label: 'Events', val: String(Array.isArray(statusLog.data) ? statusLog.data.length : 0), color: 'text-white', icon: Cpu },
         ].map((stat, i) => (
           <div key={i} className="bg-white/[0.03] border border-white/5 rounded-lg p-2 flex flex-col gap-1 hardware-border">
             <div className="flex items-center justify-between text-white/20">
